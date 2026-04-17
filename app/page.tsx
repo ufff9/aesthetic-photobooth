@@ -6,14 +6,13 @@ import { useGesture } from "@use-gesture/react";
 import {
   Camera,
   Download,
-  Trash2,
   CheckCircle2,
   RotateCcw,
   PlusCircle,
   X,
 } from "lucide-react";
 
-// --- KONFIGURASI ---
+// --- KONFIGURASI TEMA & STIKER ---
 const THEMES = [
   { id: "white", name: "White", bg: "#FFFFFF", text: "#333333" },
   { id: "dark", name: "Dark", bg: "#18181b", text: "#FFFFFF" },
@@ -34,7 +33,7 @@ const STICKER_LIST = [
   "🎨",
 ];
 
-// --- KOMPONEN STIKER (MULTI-TOUCH) ---
+// --- KOMPONEN STIKER (MENDUKUNG PINCH & ROTATE) ---
 const DraggableSticker = ({ stk, onDelete }: any) => {
   const [style, setStyle] = useState({
     x: 0,
@@ -68,19 +67,19 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
       ref={stk.nodeRef}
       className="absolute z-50 group touch-none select-none"
       style={{
-        left: "40%",
-        top: "30%",
+        left: "35%",
+        top: "25%",
         transform: `translate(${style.x}px, ${style.y}px) rotate(${style.rotation}deg) scale(${style.scale})`,
         transformOrigin: "center center",
       }}
     >
       <button
         onClick={() => onDelete(stk.id)}
-        className="absolute -top-6 -right-6 p-2 bg-red-500 text-white rounded-full shadow-lg z-[60]"
+        className="absolute -top-6 -right-6 p-2 bg-red-500 text-white rounded-full shadow-lg z-[60] active:scale-90"
       >
         <X size={14} />
       </button>
-      <div className="emoji-target text-5xl p-2 cursor-grab active:cursor-grabbing">
+      <div className="emoji-target text-6xl p-2 cursor-grab active:cursor-grabbing">
         {stk.emoji}
       </div>
     </div>
@@ -99,6 +98,7 @@ export default function FinalAestheticBooth() {
   const [dynamicText, setDynamicText] = useState("Happy Moments");
   const [placedStickers, setPlacedStickers] = useState<any[]>([]);
 
+  // Menangkap Foto (Tanpa Terbalik)
   const handleCapture = useCallback(() => {
     const shot = webcamRef.current?.getScreenshot();
     if (shot && photos.length < 3) {
@@ -117,6 +117,7 @@ export default function FinalAestheticBooth() {
     ]);
   };
 
+  // Render ke Gambar Final
   const generateFinalImage = async () => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -125,7 +126,7 @@ export default function FinalAestheticBooth() {
     canvas.width = 800;
     canvas.height = 1900;
 
-    // Background
+    // Background sesuai tema
     ctx.fillStyle = currentTheme.bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -133,7 +134,7 @@ export default function FinalAestheticBooth() {
     const photoW = canvas.width - padding * 2;
     const photoH = (photoW * 3) / 4;
 
-    // Draw Photos
+    // Menggambar Foto
     for (let i = 0; i < photos.length; i++) {
       const img = new Image();
       img.src = photos[i];
@@ -151,7 +152,7 @@ export default function FinalAestheticBooth() {
       });
     }
 
-    // Draw Stickers
+    // Menggambar Stiker dengan presisi posisi & rotasi
     const container = containerRef.current;
     if (container) {
       const scaleCanvas = canvas.width / container.offsetWidth;
@@ -163,7 +164,6 @@ export default function FinalAestheticBooth() {
             .getBoundingClientRect();
           const parentRect = container.getBoundingClientRect();
 
-          // Kalkulasi rotasi dan scale dari elemen asli
           const computedStyle = window.getComputedStyle(el);
           const matrix = new DOMMatrix(computedStyle.transform);
           const rotation = Math.atan2(matrix.b, matrix.a) * (180 / Math.PI);
@@ -186,7 +186,7 @@ export default function FinalAestheticBooth() {
       });
     }
 
-    // Caption
+    // Caption bawah
     ctx.fillStyle = currentTheme.text;
     ctx.font = "italic 44px serif";
     ctx.textAlign = "center";
@@ -197,10 +197,10 @@ export default function FinalAestheticBooth() {
   };
 
   return (
-    <div className="flex flex-col items-center h-screen bg-zinc-50 p-4 text-zinc-800 overflow-hidden font-sans">
-      <div className="mb-2 shrink-0">
+    <div className="flex flex-col items-center h-screen bg-zinc-50 p-4 text-zinc-800 overflow-hidden">
+      <div className="mb-2 shrink-0 text-center">
         <h1 className="text-xl font-serif italic font-bold">Studio Strip</h1>
-        <p className="text-[10px] text-center text-zinc-400 tracking-widest uppercase">
+        <p className="text-[10px] text-zinc-400 tracking-widest uppercase">
           {photos.length}/3 shots
         </p>
       </div>
@@ -215,7 +215,7 @@ export default function FinalAestheticBooth() {
             backgroundColor: isEditing || finalStrip ? currentTheme.bg : "#fff",
           }}
         >
-          {/* Mode Capture */}
+          {/* Layar Kamera & Review Foto */}
           {!isEditing && !finalStrip && (
             <div className="absolute inset-0 flex flex-col p-3 gap-2 justify-center">
               {photos.map((p, i) => (
@@ -227,12 +227,13 @@ export default function FinalAestheticBooth() {
                 />
               ))}
               {photos.length < 3 && (
-                <div className="w-full aspect-[4/3] bg-zinc-900 overflow-hidden rounded-sm">
+                <div className="w-full aspect-[4/3] bg-zinc-900 overflow-hidden rounded-sm relative">
                   <Webcam
                     audio={false}
                     ref={webcamRef}
                     screenshotFormat="image/png"
-                    className="w-full h-full object-cover scale-x-[-1]"
+                    mirrored={true}
+                    className="w-full h-full object-cover"
                     videoConstraints={{ facingMode: "user" }}
                   />
                 </div>
@@ -240,7 +241,7 @@ export default function FinalAestheticBooth() {
             </div>
           )}
 
-          {/* Mode Editing */}
+          {/* Layar Edit Stiker */}
           {isEditing && (
             <div className="relative h-full w-full flex flex-col p-[6%] gap-[2%] overflow-hidden">
               {photos.map((p, i) => (
@@ -269,7 +270,7 @@ export default function FinalAestheticBooth() {
             </div>
           )}
 
-          {/* Hasil Final */}
+          {/* Tampilan Akhir */}
           {finalStrip && (
             <img
               src={finalStrip}
@@ -280,7 +281,7 @@ export default function FinalAestheticBooth() {
         </div>
       </div>
 
-      {/* Kontrol UI */}
+      {/* Kontrol Navigasi */}
       <div className="w-full max-w-[340px] mt-4 space-y-3 shrink-0 pb-4">
         {!finalStrip && (
           <div className="flex justify-center gap-4 bg-white p-3 rounded-2xl shadow-sm border border-zinc-100">
@@ -304,17 +305,16 @@ export default function FinalAestheticBooth() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPhotos(photos.slice(0, -1))}
-                className="p-4 bg-white rounded-full border border-zinc-200 active:scale-95 transition-transform"
+                className="p-4 bg-white rounded-full border border-zinc-200 active:bg-zinc-100"
               >
                 <RotateCcw size={22} />
               </button>
               <button
                 onClick={handleCapture}
                 disabled={photos.length >= 3}
-                className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-bold flex justify-center gap-2 active:scale-[0.98]"
+                className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-bold flex justify-center gap-2 active:scale-95 transition-transform"
               >
-                <Camera size={20} />{" "}
-                {photos.length < 3 ? "Jepret" : "Siap Edit"}
+                <Camera size={20} /> {photos.length < 3 ? "Jepret" : "Selesai"}
               </button>
               {photos.length === 3 && (
                 <button
@@ -331,8 +331,8 @@ export default function FinalAestheticBooth() {
                 type="text"
                 value={dynamicText}
                 onChange={(e) => setDynamicText(e.target.value)}
-                className="w-full p-3 rounded-xl border text-sm focus:ring-2 focus:ring-zinc-800 outline-none"
-                placeholder="Tulis pesan..."
+                className="w-full p-3 rounded-xl border text-sm outline-none focus:border-zinc-800"
+                placeholder="Tambah caption..."
               />
               <div className="flex overflow-x-auto gap-2 p-1 no-scrollbar">
                 {STICKER_LIST.map((s) => (
@@ -347,9 +347,9 @@ export default function FinalAestheticBooth() {
               </div>
               <button
                 onClick={generateFinalImage}
-                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold shadow-lg"
+                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold"
               >
-                Simpan Hasil
+                Simpan & Download
               </button>
             </div>
           ) : (
@@ -359,7 +359,7 @@ export default function FinalAestheticBooth() {
                 download="photostrip.png"
                 className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold text-center flex justify-center gap-2"
               >
-                <Download size={20} /> Simpan ke HP
+                <Download size={20} /> Simpan ke Perangkat
               </a>
               <button
                 onClick={() => {
@@ -370,7 +370,7 @@ export default function FinalAestheticBooth() {
                 }}
                 className="w-full py-3 bg-white border border-zinc-200 rounded-xl text-xs font-bold"
               >
-                <PlusCircle size={14} className="inline mr-1" /> Foto Lagi
+                <PlusCircle size={14} className="inline mr-1" /> Mulai Sesi Baru
               </button>
             </div>
           )}
