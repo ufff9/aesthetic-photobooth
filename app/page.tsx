@@ -12,12 +12,11 @@ import {
   X,
 } from "lucide-react";
 
-// --- KONFIGURASI TEMA & STIKER ---
 const THEMES = [
-  { id: "white", name: "White", bg: "#FFFFFF", text: "#333333" },
-  { id: "dark", name: "Dark", bg: "#18181b", text: "#FFFFFF" },
-  { id: "pink", name: "Pastel", bg: "#fce7f3", text: "#db2777" },
-  { id: "blue", name: "Sky", bg: "#e0f2fe", text: "#0369a1" },
+  { id: "white", bg: "#FFFFFF", text: "#333333" },
+  { id: "dark", bg: "#18181b", text: "#FFFFFF" },
+  { id: "pink", bg: "#fce7f3", text: "#db2777" },
+  { id: "blue", bg: "#e0f2fe", text: "#0369a1" },
 ];
 
 const STICKER_LIST = [
@@ -33,14 +32,9 @@ const STICKER_LIST = [
   "🎨",
 ];
 
-// --- KOMPONEN STIKER (OPTIMASI MOBILE TOUCH) ---
+// --- OPTIMASI DRAG & PINCH ---
 const DraggableSticker = ({ stk, onDelete }: any) => {
-  const [style, setStyle] = useState({
-    x: 0,
-    y: 0,
-    scale: 1,
-    rotation: 0,
-  });
+  const [style, setStyle] = useState({ x: 0, y: 0, scale: 1, rotation: 0 });
 
   const bind = useGesture(
     {
@@ -48,20 +42,16 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
         setStyle((s) => ({ ...s, x, y }));
       },
       onPinch: ({ offset: [d, a] }) => {
-        // d adalah jarak antar jari (pinch), a adalah sudut (rotate)
         setStyle((s) => ({
           ...s,
-          scale: Math.max(0.2, Math.min(d, 4)), // Jarak zoom lebih fleksibel
+          scale: Math.max(0.1, Math.min(d, 4)), // Minimal 0.1 agar bisa sangat kecil
           rotation: a,
         }));
       },
     },
     {
       drag: { from: () => [style.x, style.y] },
-      pinch: {
-        from: () => [style.scale, style.rotation],
-        modifierKey: null, // Memastikan pinch bekerja di mobile tanpa tombol keyboard
-      },
+      pinch: { from: () => [style.scale, style.rotation] },
     },
   );
 
@@ -69,25 +59,27 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
     <div
       {...bind()}
       ref={stk.nodeRef}
-      className="absolute z-50 group select-none"
+      className="absolute z-50 group select-none touch-none"
       style={{
-        left: "35%",
-        top: "25%",
+        left: "30%",
+        top: "20%",
         transform: `translate(${style.x}px, ${style.y}px) rotate(${style.rotation}deg) scale(${style.scale})`,
         transformOrigin: "center center",
-        touchAction: "none", // SANGAT PENTING: Mematikan scroll browser agar pinch bekerja
       }}
     >
+      {/* Tombol Hapus - Diperbesar agar mudah diklik di HP */}
       <button
         onClick={(e) => {
-          e.stopPropagation(); // Mencegah drag ikut terpancing saat klik hapus
+          e.stopPropagation();
           onDelete(stk.id);
         }}
-        className="absolute -top-6 -right-6 p-2 bg-red-500 text-white rounded-full shadow-lg z-[60] active:scale-90"
+        className="absolute -top-4 -right-4 p-3 bg-red-500 text-white rounded-full shadow-xl z-[60] active:scale-75"
       >
-        <X size={16} />
+        <X size={18} />
       </button>
-      <div className="emoji-target text-7xl p-4 cursor-grab active:cursor-grabbing">
+
+      {/* Emoji dengan padding besar sebagai area tangkap jari */}
+      <div className="emoji-target text-7xl p-8 cursor-grab active:cursor-grabbing flex items-center justify-center">
         {stk.emoji}
       </div>
     </div>
@@ -107,19 +99,13 @@ export default function FinalAestheticBooth() {
 
   const handleCapture = useCallback(() => {
     const shot = webcamRef.current?.getScreenshot();
-    if (shot && photos.length < 3) {
-      setPhotos((prev) => [...prev, shot]);
-    }
+    if (shot && photos.length < 3) setPhotos((prev) => [...prev, shot]);
   }, [photos]);
 
   const addSticker = (emoji: string) => {
     setPlacedStickers((prev) => [
       ...prev,
-      {
-        id: Date.now(),
-        emoji,
-        nodeRef: React.createRef(),
-      },
+      { id: Date.now(), emoji, nodeRef: React.createRef() },
     ]);
   };
 
@@ -140,7 +126,7 @@ export default function FinalAestheticBooth() {
     for (let i = 0; i < photos.length; i++) {
       const img = new Image();
       img.src = photos[i];
-      await new Promise((resolve) => {
+      await new Promise((r) => {
         img.onload = () => {
           ctx.drawImage(
             img,
@@ -149,7 +135,7 @@ export default function FinalAestheticBooth() {
             photoW,
             photoH,
           );
-          resolve(null);
+          r(null);
         };
       });
     }
@@ -160,25 +146,21 @@ export default function FinalAestheticBooth() {
       placedStickers.forEach((stk) => {
         const el = stk.nodeRef.current;
         if (el) {
-          const rect = el
-            .querySelector(".emoji-target")
-            .getBoundingClientRect();
+          const target = el.querySelector(".emoji-target");
+          const rect = target.getBoundingClientRect();
           const parentRect = container.getBoundingClientRect();
 
-          const computedStyle = window.getComputedStyle(el);
-          const matrix = new DOMMatrix(computedStyle.transform);
+          const matrix = new DOMMatrix(window.getComputedStyle(el).transform);
           const rotation = Math.atan2(matrix.b, matrix.a) * (180 / Math.PI);
           const scale = Math.sqrt(matrix.a * matrix.a + matrix.b * matrix.b);
 
-          const canvasX =
-            (rect.left - parentRect.left + rect.width / 2) * scaleCanvas;
-          const canvasY =
-            (rect.top - parentRect.top + rect.height / 2) * scaleCanvas;
-
           ctx.save();
-          ctx.translate(canvasX, canvasY);
+          ctx.translate(
+            (rect.left - parentRect.left + rect.width / 2) * scaleCanvas,
+            (rect.top - parentRect.top + rect.height / 2) * scaleCanvas,
+          );
           ctx.rotate((rotation * Math.PI) / 180);
-          ctx.font = `${60 * scale * scaleCanvas}px Arial`;
+          ctx.font = `${65 * scale * scaleCanvas}px Arial`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText(stk.emoji, 0, 0);
@@ -191,29 +173,27 @@ export default function FinalAestheticBooth() {
     ctx.font = "italic 44px serif";
     ctx.textAlign = "center";
     ctx.fillText(dynamicText, canvas.width / 2, canvas.height - 80);
-
     setFinalStrip(canvas.toDataURL("image/png"));
     setIsEditing(false);
   };
 
   return (
-    <div className="flex flex-col items-center h-screen bg-zinc-50 p-4 text-zinc-800 overflow-hidden">
-      <div className="mb-2 shrink-0 text-center">
+    <div className="flex flex-col items-center h-screen bg-zinc-50 p-4 overflow-hidden">
+      <div className="mb-2 text-center shrink-0">
         <h1 className="text-xl font-serif italic font-bold">Studio Strip</h1>
-        <p className="text-[10px] text-zinc-400 tracking-widest uppercase">
+        <p className="text-[10px] text-zinc-400 uppercase tracking-widest">
           {photos.length}/3 shots
         </p>
       </div>
 
-      <div className="w-full flex-1 flex items-center justify-center min-h-0 relative">
+      <div className="w-full flex-1 flex items-center justify-center min-h-0">
         <div
           ref={containerRef}
-          className="relative shadow-2xl border-[6px] border-white rounded-sm bg-white overflow-hidden"
+          className="relative shadow-2xl border-[6px] border-white rounded-sm overflow-hidden"
           style={{
             aspectRatio: "8/19",
             height: "100%",
             backgroundColor: isEditing || finalStrip ? currentTheme.bg : "#fff",
-            touchAction: isEditing ? "none" : "auto", // Mencegah geser layar saat edit stiker
           }}
         >
           {!isEditing && !finalStrip && (
@@ -227,14 +207,13 @@ export default function FinalAestheticBooth() {
                 />
               ))}
               {photos.length < 3 && (
-                <div className="w-full aspect-[4/3] bg-zinc-900 overflow-hidden rounded-sm relative">
+                <div className="w-full aspect-[4/3] bg-zinc-900 rounded-sm relative">
                   <Webcam
                     audio={false}
                     ref={webcamRef}
                     screenshotFormat="image/png"
                     mirrored={true}
                     className="w-full h-full object-cover"
-                    videoConstraints={{ facingMode: "user" }}
                   />
                 </div>
               )}
@@ -242,7 +221,7 @@ export default function FinalAestheticBooth() {
           )}
 
           {isEditing && (
-            <div className="relative h-full w-full flex flex-col p-[6%] gap-[2%] overflow-hidden">
+            <div className="relative h-full w-full flex flex-col p-[6%] gap-[2%] overflow-hidden touch-none">
               {photos.map((p, i) => (
                 <img
                   key={i}
@@ -255,7 +234,7 @@ export default function FinalAestheticBooth() {
                 <DraggableSticker
                   key={stk.id}
                   stk={stk}
-                  onDelete={(id: number) =>
+                  onDelete={(id: any) =>
                     setPlacedStickers((p) => p.filter((s) => s.id !== id))
                   }
                 />
@@ -286,11 +265,7 @@ export default function FinalAestheticBooth() {
               <button
                 key={t.id}
                 onClick={() => setCurrentTheme(t)}
-                className={`w-6 h-6 rounded-full border-2 ${
-                  currentTheme.id === t.id
-                    ? "scale-125 border-zinc-800"
-                    : "border-transparent"
-                }`}
+                className={`w-6 h-6 rounded-full border-2 ${currentTheme.id === t.id ? "scale-125 border-zinc-800" : "border-transparent"}`}
                 style={{ backgroundColor: t.bg }}
               />
             ))}
@@ -302,14 +277,14 @@ export default function FinalAestheticBooth() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPhotos(photos.slice(0, -1))}
-                className="p-4 bg-white rounded-full border border-zinc-200 active:bg-zinc-100"
+                className="p-4 bg-white rounded-full border border-zinc-200"
               >
                 <RotateCcw size={22} />
               </button>
               <button
                 onClick={handleCapture}
                 disabled={photos.length >= 3}
-                className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-bold flex justify-center gap-2 active:scale-95"
+                className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-bold flex justify-center gap-2 active:scale-95 transition-transform"
               >
                 <Camera size={20} /> {photos.length < 3 ? "Jepret" : "Selesai"}
               </button>
@@ -328,7 +303,7 @@ export default function FinalAestheticBooth() {
                 type="text"
                 value={dynamicText}
                 onChange={(e) => setDynamicText(e.target.value)}
-                className="w-full p-3 rounded-xl border text-sm outline-none focus:border-zinc-800"
+                className="w-full p-3 rounded-xl border text-sm outline-none"
                 placeholder="Tambah caption..."
               />
               <div className="flex overflow-x-auto gap-2 p-1 no-scrollbar">
@@ -356,7 +331,7 @@ export default function FinalAestheticBooth() {
                 download="photostrip.png"
                 className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold text-center flex justify-center gap-2"
               >
-                <Download size={20} /> Simpan ke Perangkat
+                <Download size={20} /> Simpan ke HP
               </a>
               <button
                 onClick={() => {
@@ -367,7 +342,7 @@ export default function FinalAestheticBooth() {
                 }}
                 className="w-full py-3 bg-white border border-zinc-200 rounded-xl text-xs font-bold"
               >
-                <PlusCircle size={14} className="inline mr-1" /> Mulai Sesi Baru
+                <PlusCircle size={14} className="inline mr-1" /> Mulai Baru
               </button>
             </div>
           )}
