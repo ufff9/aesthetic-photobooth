@@ -33,7 +33,7 @@ const STICKER_LIST = [
   "🎨",
 ];
 
-// --- KOMPONEN STIKER (MENDUKUNG PINCH & ROTATE) ---
+// --- KOMPONEN STIKER (OPTIMASI MOBILE TOUCH) ---
 const DraggableSticker = ({ stk, onDelete }: any) => {
   const [style, setStyle] = useState({
     x: 0,
@@ -48,16 +48,20 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
         setStyle((s) => ({ ...s, x, y }));
       },
       onPinch: ({ offset: [d, a] }) => {
+        // d adalah jarak antar jari (pinch), a adalah sudut (rotate)
         setStyle((s) => ({
           ...s,
-          scale: Math.max(0.5, Math.min(d, 3)),
+          scale: Math.max(0.2, Math.min(d, 4)), // Jarak zoom lebih fleksibel
           rotation: a,
         }));
       },
     },
     {
       drag: { from: () => [style.x, style.y] },
-      pinch: { from: () => [style.scale, style.rotation] },
+      pinch: {
+        from: () => [style.scale, style.rotation],
+        modifierKey: null, // Memastikan pinch bekerja di mobile tanpa tombol keyboard
+      },
     },
   );
 
@@ -65,28 +69,31 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
     <div
       {...bind()}
       ref={stk.nodeRef}
-      className="absolute z-50 group touch-none select-none"
+      className="absolute z-50 group select-none"
       style={{
         left: "35%",
         top: "25%",
         transform: `translate(${style.x}px, ${style.y}px) rotate(${style.rotation}deg) scale(${style.scale})`,
         transformOrigin: "center center",
+        touchAction: "none", // SANGAT PENTING: Mematikan scroll browser agar pinch bekerja
       }}
     >
       <button
-        onClick={() => onDelete(stk.id)}
+        onClick={(e) => {
+          e.stopPropagation(); // Mencegah drag ikut terpancing saat klik hapus
+          onDelete(stk.id);
+        }}
         className="absolute -top-6 -right-6 p-2 bg-red-500 text-white rounded-full shadow-lg z-[60] active:scale-90"
       >
-        <X size={14} />
+        <X size={16} />
       </button>
-      <div className="emoji-target text-6xl p-2 cursor-grab active:cursor-grabbing">
+      <div className="emoji-target text-7xl p-4 cursor-grab active:cursor-grabbing">
         {stk.emoji}
       </div>
     </div>
   );
 };
 
-// --- KOMPONEN UTAMA ---
 export default function FinalAestheticBooth() {
   const webcamRef = useRef<Webcam>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -98,7 +105,6 @@ export default function FinalAestheticBooth() {
   const [dynamicText, setDynamicText] = useState("Happy Moments");
   const [placedStickers, setPlacedStickers] = useState<any[]>([]);
 
-  // Menangkap Foto (Tanpa Terbalik)
   const handleCapture = useCallback(() => {
     const shot = webcamRef.current?.getScreenshot();
     if (shot && photos.length < 3) {
@@ -117,7 +123,6 @@ export default function FinalAestheticBooth() {
     ]);
   };
 
-  // Render ke Gambar Final
   const generateFinalImage = async () => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -125,8 +130,6 @@ export default function FinalAestheticBooth() {
 
     canvas.width = 800;
     canvas.height = 1900;
-
-    // Background sesuai tema
     ctx.fillStyle = currentTheme.bg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -134,7 +137,6 @@ export default function FinalAestheticBooth() {
     const photoW = canvas.width - padding * 2;
     const photoH = (photoW * 3) / 4;
 
-    // Menggambar Foto
     for (let i = 0; i < photos.length; i++) {
       const img = new Image();
       img.src = photos[i];
@@ -152,7 +154,6 @@ export default function FinalAestheticBooth() {
       });
     }
 
-    // Menggambar Stiker dengan presisi posisi & rotasi
     const container = containerRef.current;
     if (container) {
       const scaleCanvas = canvas.width / container.offsetWidth;
@@ -186,7 +187,6 @@ export default function FinalAestheticBooth() {
       });
     }
 
-    // Caption bawah
     ctx.fillStyle = currentTheme.text;
     ctx.font = "italic 44px serif";
     ctx.textAlign = "center";
@@ -213,9 +213,9 @@ export default function FinalAestheticBooth() {
             aspectRatio: "8/19",
             height: "100%",
             backgroundColor: isEditing || finalStrip ? currentTheme.bg : "#fff",
+            touchAction: isEditing ? "none" : "auto", // Mencegah geser layar saat edit stiker
           }}
         >
-          {/* Layar Kamera & Review Foto */}
           {!isEditing && !finalStrip && (
             <div className="absolute inset-0 flex flex-col p-3 gap-2 justify-center">
               {photos.map((p, i) => (
@@ -241,7 +241,6 @@ export default function FinalAestheticBooth() {
             </div>
           )}
 
-          {/* Layar Edit Stiker */}
           {isEditing && (
             <div className="relative h-full w-full flex flex-col p-[6%] gap-[2%] overflow-hidden">
               {photos.map((p, i) => (
@@ -270,7 +269,6 @@ export default function FinalAestheticBooth() {
             </div>
           )}
 
-          {/* Tampilan Akhir */}
           {finalStrip && (
             <img
               src={finalStrip}
@@ -281,7 +279,6 @@ export default function FinalAestheticBooth() {
         </div>
       </div>
 
-      {/* Kontrol Navigasi */}
       <div className="w-full max-w-[340px] mt-4 space-y-3 shrink-0 pb-4">
         {!finalStrip && (
           <div className="flex justify-center gap-4 bg-white p-3 rounded-2xl shadow-sm border border-zinc-100">
@@ -312,7 +309,7 @@ export default function FinalAestheticBooth() {
               <button
                 onClick={handleCapture}
                 disabled={photos.length >= 3}
-                className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-bold flex justify-center gap-2 active:scale-95 transition-transform"
+                className="flex-1 py-4 bg-zinc-900 text-white rounded-2xl font-bold flex justify-center gap-2 active:scale-95"
               >
                 <Camera size={20} /> {photos.length < 3 ? "Jepret" : "Selesai"}
               </button>
@@ -339,7 +336,7 @@ export default function FinalAestheticBooth() {
                   <button
                     key={s}
                     onClick={() => addSticker(s)}
-                    className="text-2xl min-w-[50px] h-[50px] bg-white rounded-xl border shadow-sm active:scale-90"
+                    className="text-2xl min-w-[55px] h-[55px] bg-white rounded-xl border shadow-sm active:bg-zinc-50"
                   >
                     {s}
                   </button>
@@ -347,7 +344,7 @@ export default function FinalAestheticBooth() {
               </div>
               <button
                 onClick={generateFinalImage}
-                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold"
+                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold shadow-lg"
               >
                 Simpan & Download
               </button>
