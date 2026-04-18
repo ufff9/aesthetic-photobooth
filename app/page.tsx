@@ -41,7 +41,6 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
     {
       onDrag: ({ offset: [x, y] }) => setStyle((s) => ({ ...s, x, y })),
       onPinch: ({ offset: [d, a] }) => {
-        // Membatasi scale agar tidak hilang atau terlalu besar
         setStyle((s) => ({
           ...s,
           scale: Math.max(0.5, Math.min(d, 3)),
@@ -52,8 +51,7 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
     {
       drag: { from: () => [style.x, style.y] },
       pinch: { from: () => [style.scale, style.rotation] },
-      // Menghindari konflik scroll pada mobile
-      eventOptions: { passive: false },
+      eventOptions: { passive: false }, // Penting agar tidak scroll layar saat geser stiker
     },
   );
 
@@ -69,7 +67,6 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
         transformOrigin: "center center",
       }}
     >
-      {/* Tombol Delete diperbesar untuk memudahkan jari di HP */}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -77,7 +74,7 @@ const DraggableSticker = ({ stk, onDelete }: any) => {
         }}
         className="absolute -top-4 -right-4 p-2.5 bg-red-500 text-white rounded-full shadow-xl z-[60] active:scale-90 transition-transform"
       >
-        <X size={16} />
+        <X size={18} />
       </button>
       <div className="emoji-target text-6xl p-4 cursor-grab active:cursor-grabbing">
         {stk.emoji}
@@ -97,7 +94,6 @@ export default function FinalAestheticBooth() {
   const [dynamicText, setDynamicText] = useState("Happy Moments");
   const [placedStickers, setPlacedStickers] = useState<any[]>([]);
 
-  // 1. FIX GEPENG: Gunakan screenshot dengan resolusi yang konsisten
   const handleCapture = useCallback(() => {
     const shot = webcamRef.current?.getScreenshot();
     if (shot && photos.length < 3) {
@@ -117,6 +113,7 @@ export default function FinalAestheticBooth() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Ukuran Canvas HD (800x1900)
     canvas.width = 800;
     canvas.height = 1900;
     ctx.fillStyle = currentTheme.bg;
@@ -124,29 +121,56 @@ export default function FinalAestheticBooth() {
 
     const padding = 40;
     const photoW = canvas.width - padding * 2;
-    const photoH = (photoW * 3) / 4; // Menjaga rasio 4:3
+    const photoH = (photoW * 3) / 4; // Rasio 4:3
 
     for (let i = 0; i < photos.length; i++) {
       const img = new Image();
       img.src = photos[i];
       await new Promise((resolve) => {
         img.onload = () => {
-          // 2. FIX MIRROR PADA HASIL AKHIR
-          // Karena tampilan preview dimirror, hasil jepretan juga perlu dimirror agar sama
           ctx.save();
-          ctx.translate(
-            padding + photoW / 2,
-            padding + i * (photoH + 35) + photoH / 2,
+          const yPos = padding + i * (photoH + 35);
+
+          // Clip area agar foto tidak keluar batas
+          ctx.beginPath();
+          ctx.rect(padding, yPos, photoW, photoH);
+          ctx.clip();
+
+          // Logika Anti-Gepeng (Object Fit Cover)
+          const imgRatio = img.width / img.height;
+          const targetRatio = photoW / photoH;
+          let drawW, drawH, offsetX, offsetY;
+
+          if (imgRatio > targetRatio) {
+            drawH = photoH;
+            drawW = img.width * (photoH / img.height);
+            offsetX = padding + (photoW - drawW) / 2;
+            offsetY = yPos;
+          } else {
+            drawW = photoW;
+            drawH = img.height * (photoW / img.width);
+            offsetX = padding;
+            offsetY = yPos + (photoH - drawH) / 2;
+          }
+
+          // Mirroring hasil jepretan agar sesuai preview
+          ctx.translate(padding + photoW / 2, yPos + photoH / 2);
+          ctx.scale(-1, 1);
+          ctx.drawImage(
+            img,
+            -(drawW / 2) + (padding - offsetX),
+            -(drawH / 2) + (yPos - offsetY),
+            drawW,
+            drawH,
           );
-          ctx.scale(-1, 1); // Flip horizontal
-          ctx.drawImage(img, -photoW / 2, -photoH / 2, photoW, photoH);
+
           ctx.restore();
           resolve(null);
         };
       });
     }
 
-    // Render Stickers (Sama seperti sebelumnya namun dengan scaleCanvas yang presisi)
+    // Render Stiker ke Canvas
     const container = containerRef.current;
     if (container) {
       const scaleCanvas = canvas.width / container.offsetWidth;
@@ -181,6 +205,7 @@ export default function FinalAestheticBooth() {
       });
     }
 
+    // Render Teks Bawah
     ctx.fillStyle = currentTheme.text;
     ctx.font = "italic 44px serif";
     ctx.textAlign = "center";
@@ -199,6 +224,7 @@ export default function FinalAestheticBooth() {
         </p>
       </div>
 
+      {/* Frame Photostrip */}
       <div className="w-full flex-1 flex items-center justify-center min-h-0 relative">
         <div
           ref={containerRef}
@@ -209,13 +235,13 @@ export default function FinalAestheticBooth() {
             backgroundColor: isEditing || finalStrip ? currentTheme.bg : "#fff",
           }}
         >
+          {/* Mode Capture */}
           {!isEditing && !finalStrip && (
             <div className="absolute inset-0 flex flex-col p-3 gap-2 justify-center">
               {photos.map((p, i) => (
                 <img
                   key={i}
                   src={p}
-                  // FIX GEPENG: aspect-ratio disamakan dengan jepretan webcam
                   className="w-full aspect-[4/3] object-cover rounded-sm scale-x-[-1]"
                   alt="shot"
                 />
@@ -226,13 +252,10 @@ export default function FinalAestheticBooth() {
                     audio={false}
                     ref={webcamRef}
                     screenshotFormat="image/png"
-                    // Tampilan preview dimirror agar user tidak bingung (seperti cermin)
                     className="w-full h-full object-cover scale-x-[-1]"
                     videoConstraints={{
                       facingMode: "user",
-                      // Memaksa rasio 4:3 agar tidak gepeng
-                      width: { ideal: 1024 },
-                      height: { ideal: 768 },
+                      aspectRatio: 4 / 3,
                     }}
                   />
                 </div>
@@ -240,6 +263,7 @@ export default function FinalAestheticBooth() {
             </div>
           )}
 
+          {/* Mode Editing Stiker */}
           {isEditing && (
             <div className="relative h-full w-full flex flex-col p-[6%] gap-[2%] overflow-hidden touch-none">
               {photos.map((p, i) => (
@@ -268,6 +292,7 @@ export default function FinalAestheticBooth() {
             </div>
           )}
 
+          {/* Preview Hasil Akhir */}
           {finalStrip && (
             <img
               src={finalStrip}
@@ -278,8 +303,8 @@ export default function FinalAestheticBooth() {
         </div>
       </div>
 
+      {/* Kontrol UI */}
       <div className="w-full max-w-[340px] mt-4 space-y-3 shrink-0 pb-4">
-        {/* UI Control Tetap Sama */}
         {!finalStrip && (
           <div className="flex justify-center gap-4 bg-white p-3 rounded-2xl shadow-sm border border-zinc-100">
             {THEMES.map((t) => (
@@ -317,7 +342,7 @@ export default function FinalAestheticBooth() {
               {photos.length === 3 && (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="p-4 bg-green-500 text-white rounded-full animate-pulse"
+                  className="p-4 bg-green-500 text-white rounded-full animate-pulse shadow-lg"
                 >
                   <CheckCircle2 size={22} />
                 </button>
@@ -329,8 +354,8 @@ export default function FinalAestheticBooth() {
                 type="text"
                 value={dynamicText}
                 onChange={(e) => setDynamicText(e.target.value)}
-                className="w-full p-3 rounded-xl border outline-none focus:ring-2 focus:ring-zinc-800"
-                placeholder="Caption..."
+                className="w-full p-3 rounded-xl border outline-none focus:ring-2 focus:ring-zinc-800 bg-white"
+                placeholder="Tambah caption..."
               />
               <div className="flex overflow-x-auto gap-3 p-1 no-scrollbar">
                 {STICKER_LIST.map((s) => (
@@ -345,9 +370,9 @@ export default function FinalAestheticBooth() {
               </div>
               <button
                 onClick={generateFinalImage}
-                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold"
+                className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-bold shadow-xl"
               >
-                Gabungkan Foto
+                Proses Photostrip
               </button>
             </div>
           ) : (
